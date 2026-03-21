@@ -1,4 +1,9 @@
-import { Client, GatewayIntentBits } from "discord.js";
+import {
+  Client,
+  GatewayIntentBits,
+  MessagePayload,
+  type MessageReplyOptions,
+} from "discord.js";
 import {
   processWhitelist,
   processBlacklist,
@@ -38,30 +43,35 @@ client.on("messageCreate", async (message) => {
 
   const args = message.content.slice(PREFIX.length).trim().split(/ +/);
   const command = args.shift()?.toLowerCase();
+  const options: MessageReplyOptions = {
+    allowedMentions: { repliedUser: false, parse: [] },
+  };
 
   switch (command) {
     case "whitelist":
-      message.reply(await processWhitelist(args, message, RCON_CONFIG));
+      options.content = await processWhitelist(args, message, RCON_CONFIG);
       break;
     case "blacklist":
-      message.reply(await processBlacklist(message, RCON_CONFIG));
+      options.content = await processBlacklist(message, RCON_CONFIG);
       break;
     case "ban":
-      message.reply(await processBan(args, message, RCON_CONFIG));
+      options.content = await processBan(args, message, RCON_CONFIG);
       break;
     case "unban":
-      message.reply(await processUnban(args, message, RCON_CONFIG));
+      options.content = await processUnban(args, message, RCON_CONFIG);
       break;
     case "check":
-      message.reply(processCheck(message));
+      options.content = processCheck(message);
       break;
     case "list":
-      message.reply(processList(message));
+      options.content = processList(message);
       break;
     case "help":
-      message.reply(processHelp(PREFIX));
+      options.content = processHelp(PREFIX);
       break;
   }
+
+  message.reply(options);
 });
 
 client.on("guildMemberRemove", async (member) => {
