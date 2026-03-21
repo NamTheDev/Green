@@ -68,7 +68,7 @@ client.on("guildMemberRemove", async (member) => {
   await processLeave(member.id, RCON_CONFIG);
 });
 
-client.once("ready", () => {
+client.once("clientReady", () => {
   console.log(`Logged in as ${client.user?.tag}`);
 });
 
