@@ -4,7 +4,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "start": "bun --watch ."
+    "start": "bun ."
   },
   "devDependencies": {
     "@types/bun": "latest"
