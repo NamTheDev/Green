@@ -8,9 +8,8 @@ RUN cd /temp/dev && bun install --frozen-lockfile
 
 FROM base AS release
 COPY --from=install /temp/dev/node_modules node_modules
-COPY --chown=bun:bun . .
+COPY . .
 
 ENV NODE_ENV=production
 
-USER bun
 ENTRYPOINT [ "bun", "start" ]
