@@ -12,4 +12,4 @@ COPY . .
 
 ENV NODE_ENV=production
 
-ENTRYPOINT [ "sh", "-c", "git pull && bun start" ]
+ENTRYPOINT [ "bun", "start" ]
