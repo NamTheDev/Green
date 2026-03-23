@@ -1,6 +1,10 @@
 import { Database } from "bun:sqlite";
+import { join } from "path";
 
-const db = new Database("whitelist.sqlite", { create: true });
+const db = new Database(join(process.cwd(), "data", "whitelist.sqlite"), {
+  readwrite: true,
+  create: true,
+});
 
 db.run(`
   CREATE TABLE IF NOT EXISTS members (
