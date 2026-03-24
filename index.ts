@@ -2,15 +2,18 @@ import {
   Client,
   GatewayIntentBits,
   PermissionsBitField,
+  TextChannel,
   type MessageReplyOptions,
 } from "discord.js";
 import { Rcon } from "rcon-client";
+import { watch } from "node:fs";
 
 const TOKEN = Bun.env.TOKEN;
 const PASSWORD = Bun.env.PASSWORD;
+const LOG_CHANNEL_ID = "YOUR_LOG_CHANNEL_ID_HERE";
+const LOG_FILE_PATH = "./logs/latest.log";
 
 if (!TOKEN || !PASSWORD) {
-  console.error("Missing TOKEN or PASSWORD in environment.");
   process.exit(1);
 }
 
@@ -26,49 +29,80 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMembers,
   ],
 });
+
+async function startLogTailer() {
+  const file = Bun.file(LOG_FILE_PATH);
+  if (!(await file.exists())) return;
+
+  let lastSize = file.size;
+
+  watch(LOG_FILE_PATH, async (event) => {
+    if (event === "change") {
+      const currentSize = (await Bun.file(LOG_FILE_PATH)).size;
+
+      if (currentSize < lastSize) {
+        lastSize = currentSize;
+        return;
+      }
+
+      const newContent = await file.slice(lastSize, currentSize).text();
+      lastSize = currentSize;
+
+      const lines = newContent.split("\n").filter((l) => l.trim() !== "");
+      const logChannel = (await client.channels.fetch(
+        LOG_CHANNEL_ID,
+      )) as TextChannel;
+
+      for (const line of lines) {
+        const isChat = /<.*>/.test(line);
+        const isJoinLeave = /joined the game|left the game/.test(line);
+        const isAchievement =
+          /has made the advancement|has completed the challenge/.test(line);
+        const isDeath =
+          /was slain by|drowned|burned to death|hit the ground too hard/.test(
+            line,
+          );
+
+        if (isChat || isJoinLeave || isAchievement || isDeath) {
+          const cleanLine = line.replace(
+            /\[\d{2}:\d{2}:\d{2}\] \[Server thread\/INFO\]: /,
+            "",
+          );
+          await logChannel.send({
+            content: `\`${cleanLine}\``,
+            allowedMentions: { parse: [] },
+          });
+        }
+      }
+    }
+  });
+}
 
 client.on("messageCreate", async (message) => {
   if (message.author.bot || !message.content.startsWith(PREFIX)) return;
 
-  if (!message.member?.permissions.has(PermissionsBitField.Flags.Administrator)) {
-    message.reply({
-      content: "⚠️ You must be an Administrator to run server commands.",
-      allowedMentions: { repliedUser: false },
-    });
+  if (!message.member?.permissions.has(PermissionsBitField.Flags.Administrator))
     return;
-  }
 
   const rconCommand = message.content.slice(PREFIX.length).trim();
-  if (!rconCommand) return;
-
-  const options: MessageReplyOptions = {
-    allowedMentions: { repliedUser: false, parse: [] },
-  };
-
   try {
     const rcon = await Rcon.connect(RCON_CONFIG);
     const response = await rcon.send(rconCommand);
-    rcon.end(); 
-
-    let replyText = response ? response : "Command executed successfully (no output).";
-    if (replyText.length > 2000) {
-        replyText = replyText.substring(0, 1997) + "...";
+    rcon.end();
+    if (response) {
+      await message.reply(
+        response.length > 2000 ? response.substring(0, 1997) + "..." : response,
+      );
     }
-    
-    options.content = replyText;
-  } catch (error) {
-    console.error("RCON Error:", error);
-    options.content = "⚠️ Failed to connect to the server or execute the command.";
+  } catch (e) {
+    console.error(e);
   }
-
-  message.reply(options);
 });
 
-client.once("clientReady", () => {
-  console.log(`Logged in as ${client.user?.tag}`);
+client.once("ready", () => {
+  startLogTailer();
 });
 
 client.login(TOKEN);
