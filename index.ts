@@ -7,6 +7,7 @@ import {
 import { Rcon } from "rcon-client";
 import { watch } from "node:fs";
 import CONFIG from "./config";
+
 const { LOG_CHANNEL_ID, LOG_FILE_PATH, RCON_CONFIG, PREFIX, TOKEN } = CONFIG;
 
 const client = new Client({
@@ -19,7 +20,11 @@ const client = new Client({
 
 async function startLogTailer() {
   const file = Bun.file(LOG_FILE_PATH);
-  if (!(await file.exists())) return;
+
+  if (!(await file.exists())) {
+    console.error(`Log file not found at ${LOG_FILE_PATH}`);
+    return;
+  }
 
   let lastSize = file.size;
 
@@ -90,7 +95,7 @@ client.on("messageCreate", async (message) => {
   }
 });
 
-client.once("clientReady", () => {
+client.once("ready", () => {
   console.log(`Logged in as ${client.user?.tag}.`);
   startLogTailer();
 });
