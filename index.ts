@@ -86,8 +86,11 @@ async function startLogTailer() {
             output = `[SAY] ${cleanLine}`;
           }
 
+          const unixTimestamp = Math.floor(Date.now() / 1000);
+          const discordTimestamp = `<t:${unixTimestamp}:T>`;
+
           await logChannel.send({
-            content: `\`${output}\``,
+            content: `${discordTimestamp} \`${output}\``,
             allowedMentions: { parse: [] },
           });
         }
