@@ -6,7 +6,6 @@ import {
   TextChannel,
 } from "discord.js";
 import { Rcon } from "rcon-client";
-import { watchFile } from "node:fs";
 import CONFIG from "./config";
 
 const { LOG_CHANNEL_ID, LOG_FILE_PATH, RCON_CONFIG, PREFIX, TOKEN } = CONFIG;
@@ -28,50 +27,50 @@ const DEATH_MESSAGES = [
 ];
 
 async function startLogTailer() {
-  const file = Bun.file(LOG_FILE_PATH);
-
-  if (!(await file.exists())) {
-    console.error(`Log file not found at ${LOG_FILE_PATH}`);
+  if (!(await Bun.file(LOG_FILE_PATH).exists())) {
+    console.error(`Log file missing: ${LOG_FILE_PATH}`);
+    setTimeout(startLogTailer, 5000);
     return;
   }
 
-  let lastSize = file.size;
+  const proc = Bun.spawn(["tail", "-f", "-n", "0", LOG_FILE_PATH], {
+    stdout: "pipe",
+    stderr: "inherit",
+  });
 
-  watchFile(LOG_FILE_PATH, { interval: 1000 }, async (curr, prev) => {
-    if (curr.size < prev.size) {
-      lastSize = curr.size;
-      return;
-    }
+  const decoder = new TextDecoder();
 
-    if (curr.size === lastSize) return;
+  try {
+    for await (const chunk of proc.stdout) {
+      const text = decoder.decode(chunk);
+      const lines = text.split("\n").filter((l) => l.trim() !== "");
+      const logChannel = (await client.channels.fetch(LOG_CHANNEL_ID)) as TextChannel;
 
-    const newContent = await file.slice(lastSize, curr.size).text();
-    lastSize = curr.size;
+      for (const line of lines) {
+        const splitIndex = line.indexOf("]: ");
+        if (splitIndex === -1) continue;
 
-    const lines = newContent.split("\n").filter((l) => l.trim() !== "");
-    const logChannel = (await client.channels.fetch(
-      LOG_CHANNEL_ID,
-    )) as TextChannel;
+        const cleanLine = line.substring(splitIndex + 3);
 
-    for (const line of lines) {
-      const splitIndex = line.indexOf("]: ");
-      if (splitIndex === -1) continue;
+        const isChat = cleanLine.startsWith("<") && cleanLine.includes(">");
+        const isJoinLeave = cleanLine.includes(" joined the game") || cleanLine.includes(" left the game");
+        const isAchievement = cleanLine.includes(" has made the advancement") || cleanLine.includes(" has completed the challenge");
+        const isDeath = DEATH_MESSAGES.some((msg) => cleanLine.includes(msg));
 
-      const cleanLine = line.substring(splitIndex + 3);
-
-      const isChat = cleanLine.startsWith("<") && cleanLine.includes(">");
-      const isJoinLeave = cleanLine.includes(" joined the game") || cleanLine.includes(" left the game");
-      const isAchievement = cleanLine.includes(" has made the advancement") || cleanLine.includes(" has completed the challenge");
-      const isDeath = DEATH_MESSAGES.some((msg) => cleanLine.includes(msg));
-
-      if (isChat || isJoinLeave || isAchievement || isDeath) {
-        await logChannel.send({
-          content: `\`${cleanLine}\``,
-          allowedMentions: { parse: [] },
-        });
+        if (isChat || isJoinLeave || isAchievement || isDeath) {
+          await logChannel.send({
+            content: `\`${cleanLine}\``,
+            allowedMentions: { parse: [] },
+          });
+        }
       }
     }
-  });
+  } catch (e) {
+    console.error("Stream error:", e);
+  } finally {
+    proc.kill();
+    setTimeout(startLogTailer, 5000);
+  }
 }
 
 client.on(Events.MessageCreate, async (message) => {
@@ -95,11 +94,11 @@ client.on(Events.MessageCreate, async (message) => {
       });
     }
   } catch (e) {
-    console.error(e);
+    console.error("RCON Error:", e);
   }
 });
 
-client.once(Events.ClientReady, () => {
+client.once("clientReady", () => {
   console.log(`Logged in as ${client.user?.tag}.`);
   startLogTailer();
 });
