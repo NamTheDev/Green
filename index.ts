@@ -3,7 +3,6 @@ import {
   GatewayIntentBits,
   PermissionsBitField,
   TextChannel,
-  type MessageReplyOptions,
 } from "discord.js";
 import { Rcon } from "rcon-client";
 import { watch } from "node:fs";
@@ -39,7 +38,7 @@ async function startLogTailer() {
 
   watch(LOG_FILE_PATH, async (event) => {
     if (event === "change") {
-      const currentSize = (await Bun.file(LOG_FILE_PATH)).size;
+      const currentSize = Bun.file(LOG_FILE_PATH).size;
 
       if (currentSize < lastSize) {
         lastSize = currentSize;
@@ -91,9 +90,13 @@ client.on("messageCreate", async (message) => {
     const response = await rcon.send(rconCommand);
     rcon.end();
     if (response) {
-      await message.reply(
-        response.length > 2000 ? response.substring(0, 1997) + "..." : response,
-      );
+      await message.reply({
+        content:
+          response.length > 2000
+            ? response.substring(0, 1997) + "..."
+            : response,
+        allowedMentions: { parse: [] },
+      });
     }
   } catch (e) {
     console.error(e);
@@ -101,6 +104,7 @@ client.on("messageCreate", async (message) => {
 });
 
 client.once("clientReady", () => {
+  console.log(`Logged in as ${client.user?.tag}.`)
   startLogTailer();
 });
 
