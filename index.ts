@@ -69,6 +69,8 @@ async function startLogTailer() {
         const cleanLine = match[1];
 
         const isChat = cleanLine.startsWith("<") && cleanLine.includes(">");
+        const isSayCommand =
+          cleanLine.startsWith("[") && cleanLine.includes("]");
         const isJoinLeave =
           cleanLine.includes(" joined the game") ||
           cleanLine.includes(" left the game");
@@ -77,9 +79,15 @@ async function startLogTailer() {
           cleanLine.includes(" has completed the challenge");
         const isDeath = DEATH_PATTERNS.some((p) => cleanLine.includes(p));
 
-        if (isChat || isJoinLeave || isAchievement || isDeath) {
+        if (isChat || isSayCommand || isJoinLeave || isAchievement || isDeath) {
+          let output = cleanLine;
+
+          if (isSayCommand && !isChat) {
+            output = `[SAY] ${cleanLine}`;
+          }
+
           await logChannel.send({
-            content: `\`${cleanLine}\``,
+            content: `\`${output}\``,
             allowedMentions: { parse: [] },
           });
         }
