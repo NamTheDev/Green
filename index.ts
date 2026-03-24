@@ -7,11 +7,10 @@ import {
 } from "discord.js";
 import { Rcon } from "rcon-client";
 import { watch } from "node:fs";
+import { LOG_CHANNEL_ID, LOG_FILE_PATH } from "./config.json";
 
 const TOKEN = Bun.env.TOKEN;
 const PASSWORD = Bun.env.PASSWORD;
-const LOG_CHANNEL_ID = "YOUR_LOG_CHANNEL_ID_HERE";
-const LOG_FILE_PATH = "./logs/latest.log";
 
 if (!TOKEN || !PASSWORD) {
   process.exit(1);
