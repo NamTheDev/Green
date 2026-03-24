@@ -18,12 +18,26 @@ const client = new Client({
   ],
 });
 
-const DEATH_MESSAGES = [
-  " was slain by ", " drowned", " burned to death", " went up in flames",
-  " hit the ground too hard", " fell from a high place", " blew up",
-  " was shot by ", " was pricked to death", " walked into fire",
-  " froze to death", " was struck by lightning", " starved to death",
-  " suffocated in a wall", " died", " experienced kinetic energy"
+const LOG_REGEX =
+  /^\[\d{2}:\d{2}:\d{2}\]\s+\[Server\s+thread\/INFO\]:\s+(?:\[Not\s+Secure\]\s+)?(.*)$/;
+
+const DEATH_PATTERNS = [
+  "was slain by",
+  "drowned",
+  "burned to death",
+  "went up in flames",
+  "hit the ground too hard",
+  "fell from a high place",
+  "blew up",
+  "was shot by",
+  "was pricked to death",
+  "walked into fire",
+  "froze to death",
+  "was struck by lightning",
+  "starved to death",
+  "suffocated in a wall",
+  "died",
+  "experienced kinetic energy",
 ];
 
 async function startLogTailer() {
@@ -44,18 +58,24 @@ async function startLogTailer() {
     for await (const chunk of proc.stdout) {
       const text = decoder.decode(chunk);
       const lines = text.split("\n").filter((l) => l.trim() !== "");
-      const logChannel = (await client.channels.fetch(LOG_CHANNEL_ID)) as TextChannel;
+      const logChannel = (await client.channels.fetch(
+        LOG_CHANNEL_ID,
+      )) as TextChannel;
 
       for (const line of lines) {
-        const splitIndex = line.indexOf("]: ");
-        if (splitIndex === -1) continue;
+        const match = line.match(LOG_REGEX);
+        if (!match || !match[1]) continue;
 
-        const cleanLine = line.substring(splitIndex + 3);
+        const cleanLine = match[1];
 
         const isChat = cleanLine.startsWith("<") && cleanLine.includes(">");
-        const isJoinLeave = cleanLine.includes(" joined the game") || cleanLine.includes(" left the game");
-        const isAchievement = cleanLine.includes(" has made the advancement") || cleanLine.includes(" has completed the challenge");
-        const isDeath = DEATH_MESSAGES.some((msg) => cleanLine.includes(msg));
+        const isJoinLeave =
+          cleanLine.includes(" joined the game") ||
+          cleanLine.includes(" left the game");
+        const isAchievement =
+          cleanLine.includes(" has made the advancement") ||
+          cleanLine.includes(" has completed the challenge");
+        const isDeath = DEATH_PATTERNS.some((p) => cleanLine.includes(p));
 
         if (isChat || isJoinLeave || isAchievement || isDeath) {
           await logChannel.send({
