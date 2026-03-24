@@ -18,6 +18,14 @@ const client = new Client({
   ],
 });
 
+const DEATH_MESSAGES = [
+  " was slain by ", " drowned", " burned to death", " went up in flames",
+  " hit the ground too hard", " fell from a high place", " blew up",
+  " was shot by ", " was pricked to death", " walked into fire",
+  " froze to death", " was struck by lightning", " starved to death",
+  " suffocated in a wall", " died", " experienced kinetic energy"
+];
+
 async function startLogTailer() {
   const file = Bun.file(LOG_FILE_PATH);
 
@@ -46,20 +54,17 @@ async function startLogTailer() {
       )) as TextChannel;
 
       for (const line of lines) {
-        const isChat = /<.*>/.test(line);
-        const isJoinLeave = /joined the game|left the game/.test(line);
-        const isAchievement =
-          /has made the advancement|has completed the challenge/.test(line);
-        const isDeath =
-          /was slain by|drowned|burned to death|hit the ground too hard/.test(
-            line,
-          );
+        const splitIndex = line.indexOf("]: ");
+        if (splitIndex === -1) continue;
+
+        const cleanLine = line.substring(splitIndex + 3);
+
+        const isChat = cleanLine.startsWith("<") && cleanLine.includes(">");
+        const isJoinLeave = cleanLine.includes(" joined the game") || cleanLine.includes(" left the game");
+        const isAchievement = cleanLine.includes(" has made the advancement") || cleanLine.includes(" has completed the challenge");
+        const isDeath = DEATH_MESSAGES.some((msg) => cleanLine.includes(msg));
 
         if (isChat || isJoinLeave || isAchievement || isDeath) {
-          const cleanLine = line.replace(
-            /\[\d{2}:\d{2}:\d{2}\] \[Server thread\/INFO\]: /,
-            "",
-          );
           await logChannel.send({
             content: `\`${cleanLine}\``,
             allowedMentions: { parse: [] },
