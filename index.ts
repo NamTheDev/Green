@@ -6,21 +6,8 @@ import {
 } from "discord.js";
 import { Rcon } from "rcon-client";
 import { watch } from "node:fs";
-import { LOG_CHANNEL_ID, LOG_FILE_PATH } from "./config.json";
-
-const TOKEN = Bun.env.TOKEN;
-const PASSWORD = Bun.env.PASSWORD;
-
-if (!TOKEN || !PASSWORD) {
-  process.exit(1);
-}
-
-const PREFIX = "$";
-const RCON_CONFIG = {
-  host: "minecraft-server",
-  port: 25575,
-  password: PASSWORD,
-};
+import CONFIG from "./config";
+const { LOG_CHANNEL_ID, LOG_FILE_PATH, RCON_CONFIG, PREFIX, TOKEN } = CONFIG;
 
 const client = new Client({
   intents: [
@@ -104,7 +91,7 @@ client.on("messageCreate", async (message) => {
 });
 
 client.once("clientReady", () => {
-  console.log(`Logged in as ${client.user?.tag}.`)
+  console.log(`Logged in as ${client.user?.tag}.`);
   startLogTailer();
 });
 
