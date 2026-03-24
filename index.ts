@@ -1,11 +1,12 @@
 import {
   Client,
+  Events,
   GatewayIntentBits,
   PermissionsBitField,
   TextChannel,
 } from "discord.js";
 import { Rcon } from "rcon-client";
-import { watch } from "node:fs";
+import { watchFile } from "node:fs";
 import CONFIG from "./config";
 
 const { LOG_CHANNEL_ID, LOG_FILE_PATH, RCON_CONFIG, PREFIX, TOKEN } = CONFIG;
@@ -36,46 +37,44 @@ async function startLogTailer() {
 
   let lastSize = file.size;
 
-  watch(LOG_FILE_PATH, async (event) => {
-    if (event === "change") {
-      const currentSize = Bun.file(LOG_FILE_PATH).size;
+  watchFile(LOG_FILE_PATH, { interval: 1000 }, async (curr, prev) => {
+    if (curr.size < prev.size) {
+      lastSize = curr.size;
+      return;
+    }
 
-      if (currentSize < lastSize) {
-        lastSize = currentSize;
-        return;
-      }
+    if (curr.size === lastSize) return;
 
-      const newContent = await file.slice(lastSize, currentSize).text();
-      lastSize = currentSize;
+    const newContent = await file.slice(lastSize, curr.size).text();
+    lastSize = curr.size;
 
-      const lines = newContent.split("\n").filter((l) => l.trim() !== "");
-      const logChannel = (await client.channels.fetch(
-        LOG_CHANNEL_ID,
-      )) as TextChannel;
+    const lines = newContent.split("\n").filter((l) => l.trim() !== "");
+    const logChannel = (await client.channels.fetch(
+      LOG_CHANNEL_ID,
+    )) as TextChannel;
 
-      for (const line of lines) {
-        const splitIndex = line.indexOf("]: ");
-        if (splitIndex === -1) continue;
+    for (const line of lines) {
+      const splitIndex = line.indexOf("]: ");
+      if (splitIndex === -1) continue;
 
-        const cleanLine = line.substring(splitIndex + 3);
+      const cleanLine = line.substring(splitIndex + 3);
 
-        const isChat = cleanLine.startsWith("<") && cleanLine.includes(">");
-        const isJoinLeave = cleanLine.includes(" joined the game") || cleanLine.includes(" left the game");
-        const isAchievement = cleanLine.includes(" has made the advancement") || cleanLine.includes(" has completed the challenge");
-        const isDeath = DEATH_MESSAGES.some((msg) => cleanLine.includes(msg));
+      const isChat = cleanLine.startsWith("<") && cleanLine.includes(">");
+      const isJoinLeave = cleanLine.includes(" joined the game") || cleanLine.includes(" left the game");
+      const isAchievement = cleanLine.includes(" has made the advancement") || cleanLine.includes(" has completed the challenge");
+      const isDeath = DEATH_MESSAGES.some((msg) => cleanLine.includes(msg));
 
-        if (isChat || isJoinLeave || isAchievement || isDeath) {
-          await logChannel.send({
-            content: `\`${cleanLine}\``,
-            allowedMentions: { parse: [] },
-          });
-        }
+      if (isChat || isJoinLeave || isAchievement || isDeath) {
+        await logChannel.send({
+          content: `\`${cleanLine}\``,
+          allowedMentions: { parse: [] },
+        });
       }
     }
   });
 }
 
-client.on("messageCreate", async (message) => {
+client.on(Events.MessageCreate, async (message) => {
   if (message.author.bot || !message.content.startsWith(PREFIX)) return;
 
   if (!message.member?.permissions.has(PermissionsBitField.Flags.Administrator))
@@ -100,7 +99,7 @@ client.on("messageCreate", async (message) => {
   }
 });
 
-client.once("clientReady", () => {
+client.once(Events.ClientReady, () => {
   console.log(`Logged in as ${client.user?.tag}.`);
   startLogTailer();
 });
