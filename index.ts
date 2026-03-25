@@ -8,7 +8,7 @@ import {
 import { Rcon } from "rcon-client";
 import CONFIG from "./config";
 
-const { LOG_CHANNEL_ID, LOG_FILE_PATH, RCON_CONFIG, PREFIX, TOKEN } = CONFIG;
+const { CHANNEL_ID, LOG_FILE_PATH, RCON_CONFIG, PREFIX, TOKEN } = CONFIG;
 
 const client = new Client({
   intents: [
@@ -58,7 +58,7 @@ async function startLogTailer() {
       const text = decoder.decode(chunk);
       const lines = text.split("\n").filter((l) => l.trim() !== "");
 
-      const channel = await client.channels.fetch(LOG_CHANNEL_ID);
+      const channel = await client.channels.fetch(CHANNEL_ID.LOG);
       if (!channel || !(channel instanceof TextChannel)) continue;
 
       for (const line of lines) {
@@ -98,7 +98,7 @@ async function startLogTailer() {
 setInterval(
   async () => {
     if (!client.isReady()) return;
-    const channel = await client.channels.fetch(LOG_CHANNEL_ID);
+    const channel = await client.channels.fetch(CHANNEL_ID.UPTIME);
     if (channel instanceof TextChannel) {
       await channel.send({
         content: `[SYSTEM] Uptime check: Bot is active.`,

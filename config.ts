@@ -1,6 +1,9 @@
 export default {
   PREFIX: "$",
-  LOG_CHANNEL_ID: "1485921480079573153",
+  CHANNEL_ID: {
+    LOG: "1485921480079573153",
+    UPTIME: "1486350590710648893",
+  },
   LOG_FILE_PATH: "/usr/src/app/logs/latest.log",
   RCON_CONFIG: {
     host: "minecraft-server",
