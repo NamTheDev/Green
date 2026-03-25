@@ -42,12 +42,11 @@ const DEATH_PATTERNS = [
 
 async function startLogTailer() {
   if (!(await Bun.file(LOG_FILE_PATH).exists())) {
-    console.error(`Log file missing: ${LOG_FILE_PATH}`);
     setTimeout(startLogTailer, 5000);
     return;
   }
 
-  const proc = Bun.spawn(["tail", "-f", "-n", "0", LOG_FILE_PATH], {
+  const proc = Bun.spawn(["tail", "-F", "-n", "0", LOG_FILE_PATH], {
     stdout: "pipe",
     stderr: "inherit",
   });
@@ -58,55 +57,60 @@ async function startLogTailer() {
     for await (const chunk of proc.stdout) {
       const text = decoder.decode(chunk);
       const lines = text.split("\n").filter((l) => l.trim() !== "");
-      const logChannel = (await client.channels.fetch(
-        LOG_CHANNEL_ID,
-      )) as TextChannel;
+
+      const channel = await client.channels.fetch(LOG_CHANNEL_ID);
+      if (!channel || !(channel instanceof TextChannel)) continue;
 
       for (const line of lines) {
         const match = line.match(LOG_REGEX);
-        if (!match || !match[1]) continue;
+        if (!match?.[1]) continue;
 
         const cleanLine = match[1];
-
         const isChat = cleanLine.startsWith("<") && cleanLine.includes(">");
-        const isSayCommand =
-          cleanLine.startsWith("[") && cleanLine.includes("]");
+        const isSay = cleanLine.startsWith("[") && cleanLine.includes("]");
         const isJoinLeave =
           cleanLine.includes(" joined the game") ||
           cleanLine.includes(" left the game");
-        const isAchievement =
+        const isAdvancement =
           cleanLine.includes(" has made the advancement") ||
           cleanLine.includes(" has completed the challenge");
         const isDeath = DEATH_PATTERNS.some((p) => cleanLine.includes(p));
 
-        if (isChat || isSayCommand || isJoinLeave || isAchievement || isDeath) {
-          let output = cleanLine;
+        if (isChat || isSay || isJoinLeave || isAdvancement || isDeath) {
+          const output = isSay && !isChat ? `[SAY] ${cleanLine}` : cleanLine;
+          const timestamp = `<t:${Math.floor(Date.now() / 1000)}:T>`;
 
-          if (isSayCommand && !isChat) {
-            output = `[SAY] ${cleanLine}`;
-          }
-
-          const unixTimestamp = Math.floor(Date.now() / 1000);
-          const discordTimestamp = `<t:${unixTimestamp}:T>`;
-
-          await logChannel.send({
-            content: `${discordTimestamp} \`${output}\``,
+          await channel.send({
+            content: `${timestamp} \`${output}\``,
             allowedMentions: { parse: [] },
           });
         }
       }
     }
   } catch (e) {
-    console.error("Stream error:", e);
+    console.error("Tail error:", e);
   } finally {
     proc.kill();
     setTimeout(startLogTailer, 5000);
   }
 }
 
+setInterval(
+  async () => {
+    if (!client.isReady()) return;
+    const channel = await client.channels.fetch(LOG_CHANNEL_ID);
+    if (channel instanceof TextChannel) {
+      await channel.send({
+        content: `[SYSTEM] Uptime check: Bot is active.`,
+        allowedMentions: { parse: [] },
+      });
+    }
+  },
+  30 * 60 * 1000,
+);
+
 client.on(Events.MessageCreate, async (message) => {
   if (message.author.bot || !message.content.startsWith(PREFIX)) return;
-
   if (!message.member?.permissions.has(PermissionsBitField.Flags.Administrator))
     return;
 
@@ -129,7 +133,7 @@ client.on(Events.MessageCreate, async (message) => {
   }
 });
 
-client.once("clientReady", () => {
+client.once(Events.ClientReady, () => {
   console.log(`Logged in as ${client.user?.tag}.`);
   startLogTailer();
 });
